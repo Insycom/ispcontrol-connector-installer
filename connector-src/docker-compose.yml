@@ -1,0 +1,24 @@
+services:
+  connector:
+    build:
+      context: ./connector-src
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    dns:
+      - ${ISPCONTROL_DNS_SERVER:-172.31.0.1}
+    environment:
+      ISPCONTROL_API_URL: ${ISPCONTROL_API_URL}
+      ISPCONTROL_ALLOW_INSECURE_HTTP: ${ISPCONTROL_ALLOW_INSECURE_HTTP:-false}
+      ISPCONTROL_CONNECTOR_NAME: ${ISPCONTROL_CONNECTOR_NAME:-IspControl Connector}
+      ISPCONTROL_ENROLLMENT_TOKEN: ${ISPCONTROL_ENROLLMENT_TOKEN:-}
+      ISPCONTROL_GLOBAL_CONNECTOR_DATA_DIR: ${ISPCONTROL_GLOBAL_CONNECTOR_DATA_DIR:-/var/lib/ispcontrol}
+      ISPCONTROL_DNS_SERVER: ${ISPCONTROL_DNS_SERVER:-172.31.0.1}
+    volumes:
+      - connector_identity:${ISPCONTROL_GLOBAL_CONNECTOR_DATA_DIR:-/var/lib/ispcontrol}
+    ports:
+      - "127.0.0.1:${PORT:-9080}:9080"
+
+volumes:
+  connector_identity:
