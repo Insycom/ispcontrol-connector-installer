@@ -123,7 +123,7 @@ if [ -z "$INSTALL_DIR" ]; then
 fi
 
 mkdir -p "$INSTALL_DIR"
-cp -R "$WORKDIR/repo/connector-src" "$INSTALL_DIR/"
+cp "$WORKDIR/repo/docker-compose.yml" "$INSTALL_DIR/docker-compose.yml"
 cat >"$INSTALL_DIR/.env" <<EOF
 ISPCONTROL_API_URL=${API_URL}
 ISPCONTROL_ALLOW_INSECURE_HTTP=${ALLOW_INSECURE_HTTP}
@@ -136,6 +136,6 @@ ISPCONTROL_CONNECTOR_IMAGE=${IMAGE}
 EOF
 
 log "Levantando el conector..."
-cd "$INSTALL_DIR/connector-src"
+cd "$INSTALL_DIR"
 docker compose up -d
 log "Listo. Salud local en http://127.0.0.1:${PORT}/health"
