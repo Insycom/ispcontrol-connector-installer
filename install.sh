@@ -132,7 +132,7 @@ download_compose() {
     return
   fi
 
-  COMPOSE_URL="https://raw.githubusercontent.com/Insycom/ISPCONTROL/main/apps/connector/docker-compose.installer.example.yaml"
+  COMPOSE_URL="https://raw.githubusercontent.com/Insycom/ispcontrol-connector-installer/main/docker-compose.yml"
   curl -fsSL "$COMPOSE_URL" -o "$install_dir/docker-compose.yml"
   return
 
