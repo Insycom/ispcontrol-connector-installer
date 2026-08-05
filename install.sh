@@ -31,12 +31,6 @@ log() { printf '\033[1;32m[ispcontrol]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[ispcontrol]\033[0m %s\n' "$*" >&2; }
 die() { printf '\033[1;31m[ispcontrol]\033[0m %s\n' "$*" >&2; exit 1; }
 
-need_root() {
-  if [ "${EUID:-$(id -u)}" -ne 0 ]; then
-    die "Ejecutá este instalador como root (sudo)."
-  fi
-}
-
 API_URL=""
 DNS_SERVER="172.31.0.1"
 CONNECTOR_NAME="IspControl Connector"
@@ -61,10 +55,13 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-need_root
-
 if [ -z "$API_URL" ]; then
   die "--api-url es obligatorio"
+fi
+
+IS_ROOT=0
+if [ "${EUID:-$(id -u)}" -eq 0 ]; then
+  IS_ROOT=1
 fi
 
 detect_pm() {
@@ -79,6 +76,10 @@ install_docker() {
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
     log "Docker y Docker Compose ya están instalados."
     return
+  fi
+
+  if [ "$IS_ROOT" -ne 1 ]; then
+    die "No encontré Docker/Compose. Instalalo o ejecutá este script como root para que pueda instalarlo."
   fi
 
   local pm
@@ -122,8 +123,17 @@ install_docker() {
   systemctl enable --now docker || true
 }
 
-compose_path="/opt/ispcontrol-connector"
-install_dir="$compose_path"
+if [ "$IS_ROOT" -eq 1 ]; then
+  install_dir="/opt/ispcontrol-connector"
+  default_data_dir="/var/lib/ispcontrol"
+else
+  install_dir="${XDG_DATA_HOME:-$HOME/.local/share}/ispcontrol-connector"
+  default_data_dir="$install_dir/data"
+fi
+
+if [ "$DATA_DIR" = "/var/lib/ispcontrol" ]; then
+  DATA_DIR="$default_data_dir"
+fi
 
 download_compose() {
   mkdir -p "$install_dir"
@@ -132,7 +142,7 @@ download_compose() {
     return
   fi
 
-  COMPOSE_URL="https://raw.githubusercontent.com/Insycom/ispcontrol-connector-installer/main/docker-compose.yml"
+  COMPOSE_URL="https://raw.githubusercontent.com/Insycom/ISPCONTROL/main/apps/connector/docker-compose.installer.example.yaml"
   curl -fsSL "$COMPOSE_URL" -o "$install_dir/docker-compose.yml"
   return
 
