@@ -2,10 +2,10 @@
 set -euo pipefail
 
 usage() {
-  cat <<'USAGE'
+  cat <<'EOF'
 Uso:
   curl -fsSL https://raw.githubusercontent.com/Insycom/ispcontrol-connector-installer/main/install.sh | bash -s -- \
-    --api-url http://ispcontrol.local \
+    --api-url http://ispcontrol.local:3000 \
     --dns 172.31.0.1 \
     --name "Conector sucursal norte"
 
@@ -16,7 +16,7 @@ Opcionales:
   --enrollment-token TOKEN
   --allow-insecure-http true|false
   --port 9080
-USAGE
+EOF
 }
 
 log(){ printf '\033[1;32m[ispcontrol]\033[0m %s\n' "$*"; }
@@ -52,9 +52,8 @@ done
 
 [ -n "$API_URL" ] || die "--api-url es obligatorio"
 
-REPO="Insycom/ispcontrol-connector-installer"
-BASE_RAW="https://raw.githubusercontent.com/$REPO"
-API="https://api.github.com/repos/$REPO"
+REPO_URL="https://github.com/Insycom/ispcontrol-connector-installer.git"
+REPO_RAW="https://raw.githubusercontent.com/Insycom/ispcontrol-connector-installer"
 
 resolve_ref() {
   if [ -n "$COMMIT" ]; then
@@ -70,26 +69,69 @@ resolve_ref() {
         ;;
     esac
   fi
-  curl -fsSL "$API/commits/main" | python - <<'PY'
-import json,sys
-print(json.load(sys.stdin)["sha"])
-PY
+  if command -v gh >/dev/null 2>&1; then
+    gh api repos/Insycom/ispcontrol-connector-installer/commits/main --jq .sha
+    return
+  fi
+  curl -fsSL "https://api.github.com/repos/Insycom/ispcontrol-connector-installer/commits/main" | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])'
 }
 
 REF="$(resolve_ref)"
 [ -n "$REF" ] || die "No pude resolver la versión más nueva"
 
-SCRIPT_URL="$BASE_RAW/$REF/install.sh"
 WORKDIR="${XDG_DATA_HOME:-$HOME/.local/share}/ispcontrol-connector-installer-$REF"
 mkdir -p "$WORKDIR"
-curl -fsSL "$SCRIPT_URL" -o "$WORKDIR/install.real.sh"
-chmod +x "$WORKDIR/install.real.sh"
-exec bash "$WORKDIR/install.real.sh" \
-  --api-url "$API_URL" \
-  --dns "$DNS_SERVER" \
-  --name "$CONNECTOR_NAME" \
-  --install-dir "$INSTALL_DIR" \
-  --enrollment-token "$ENROLLMENT_TOKEN" \
-  --allow-insecure-http "$ALLOW_INSECURE_HTTP" \
-  --port "$PORT" \
-  ${USE_DOCKER_RUN:+--docker-run}
+
+if [ ! -d "$WORKDIR/repo/.git" ]; then
+  git clone "$REPO_URL" "$WORKDIR/repo"
+fi
+git -C "$WORKDIR/repo" checkout --force "$REF" >/dev/null 2>&1 || git -C "$WORKDIR/repo" checkout --force origin/main
+
+if [ "$USE_DOCKER_RUN" = "true" ]; then
+  log "Ejecutando con docker run..."
+  docker build -t ispcontrol-connector:local "$WORKDIR/repo/connector-src"
+  docker rm -f ispcontrol-connector >/dev/null 2>&1 || true
+  docker run -d \
+    --name ispcontrol-connector \
+    --restart unless-stopped \
+    --read-only \
+    --security-opt no-new-privileges:true \
+    --dns "$DNS_SERVER" \
+    -e ISPCONTROL_API_URL="$API_URL" \
+    -e ISPCONTROL_ALLOW_INSECURE_HTTP="$ALLOW_INSECURE_HTTP" \
+    -e ISPCONTROL_CONNECTOR_NAME="$CONNECTOR_NAME" \
+    -e ISPCONTROL_ENROLLMENT_TOKEN="$ENROLLMENT_TOKEN" \
+    -e ISPCONTROL_GLOBAL_CONNECTOR_DATA_DIR="/var/lib/ispcontrol" \
+    -e ISPCONTROL_DNS_SERVER="$DNS_SERVER" \
+    -p "127.0.0.1:${PORT}:9080" \
+    --tmpfs /tmp \
+    --tmpfs /run \
+    ispcontrol-connector:local
+  log "Listo. Salud local en http://127.0.0.1:${PORT}/health"
+  exit 0
+fi
+
+if [ -z "$INSTALL_DIR" ]; then
+  if [ "$(id -u)" -eq 0 ]; then
+    INSTALL_DIR="/opt/ispcontrol-connector"
+  else
+    INSTALL_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/ispcontrol-connector"
+  fi
+fi
+
+mkdir -p "$INSTALL_DIR"
+cp -R "$WORKDIR/repo/connector-src" "$INSTALL_DIR/"
+cat >"$INSTALL_DIR/.env" <<EOF
+ISPCONTROL_API_URL=${API_URL}
+ISPCONTROL_ALLOW_INSECURE_HTTP=${ALLOW_INSECURE_HTTP}
+ISPCONTROL_CONNECTOR_NAME=${CONNECTOR_NAME}
+ISPCONTROL_ENROLLMENT_TOKEN=${ENROLLMENT_TOKEN}
+ISPCONTROL_GLOBAL_CONNECTOR_DATA_DIR=/var/lib/ispcontrol
+ISPCONTROL_DNS_SERVER=${DNS_SERVER}
+PORT=${PORT}
+EOF
+
+log "Levantando el conector..."
+cd "$INSTALL_DIR/connector-src"
+docker compose up -d
+log "Listo. Salud local en http://127.0.0.1:${PORT}/health"
