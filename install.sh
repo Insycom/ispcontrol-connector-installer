@@ -11,6 +11,7 @@ Uso:
 
 Opcionales:
   --version VERSION | --commit SHA
+  --image REPO/NAME:TAG
   --install-dir RUTA
   --docker-run
   --enrollment-token TOKEN
@@ -32,6 +33,7 @@ ALLOW_INSECURE_HTTP="false"
 USE_DOCKER_RUN="false"
 VERSION=""
 COMMIT=""
+IMAGE="fponce1996/ispcontrol-connector:latest"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -45,6 +47,7 @@ while [ $# -gt 0 ]; do
     --docker-run) USE_DOCKER_RUN="true"; shift 1 ;;
     --version) VERSION="${2:-}"; shift 2 ;;
     --commit) COMMIT="${2:-}"; shift 2 ;;
+    --image) IMAGE="${2:-}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) die "Argumento desconocido: $1" ;;
   esac
@@ -89,7 +92,7 @@ git -C "$WORKDIR/repo" checkout --force "$REF" >/dev/null 2>&1 || git -C "$WORKD
 
 if [ "$USE_DOCKER_RUN" = "true" ]; then
   log "Ejecutando con docker run..."
-  docker build -t ispcontrol-connector:local "$WORKDIR/repo/connector-src"
+  docker pull "$IMAGE"
   docker rm -f ispcontrol-connector >/dev/null 2>&1 || true
   docker run -d \
     --name ispcontrol-connector \
@@ -106,7 +109,7 @@ if [ "$USE_DOCKER_RUN" = "true" ]; then
     -p "127.0.0.1:${PORT}:9080" \
     --tmpfs /tmp \
     --tmpfs /run \
-    ispcontrol-connector:local
+    "$IMAGE"
   log "Listo. Salud local en http://127.0.0.1:${PORT}/health"
   exit 0
 fi
@@ -129,6 +132,7 @@ ISPCONTROL_ENROLLMENT_TOKEN=${ENROLLMENT_TOKEN}
 ISPCONTROL_GLOBAL_CONNECTOR_DATA_DIR=/var/lib/ispcontrol
 ISPCONTROL_DNS_SERVER=${DNS_SERVER}
 PORT=${PORT}
+ISPCONTROL_CONNECTOR_IMAGE=${IMAGE}
 EOF
 
 log "Levantando el conector..."
