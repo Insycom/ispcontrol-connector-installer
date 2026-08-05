@@ -34,7 +34,7 @@ die() { printf '\033[1;31m[ispcontrol]\033[0m %s\n' "$*" >&2; exit 1; }
 API_URL=""
 DNS_SERVER="172.31.0.1"
 CONNECTOR_NAME="IspControl Connector"
-DATA_DIR="/var/lib/ispcontrol"
+DATA_DIR=""
 ENROLLMENT_TOKEN=""
 PORT="9080"
 ALLOW_INSECURE_HTTP="false"
@@ -74,12 +74,14 @@ detect_pm() {
 
 install_docker() {
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-    log "Docker y Docker Compose ya están instalados."
-    return
+    if docker info >/dev/null 2>&1; then
+      log "Docker y Docker Compose ya están instalados."
+      return
+    fi
   fi
 
   if [ "$IS_ROOT" -ne 1 ]; then
-    die "No encontré Docker/Compose. Instalalo o ejecutá este script como root para que pueda instalarlo."
+    die "No encontré Docker/Compose o no tengo permisos para usar Docker. Si Docker ya está instalado, abrí una nueva sesión para tomar el grupo docker."
   fi
 
   local pm
@@ -131,7 +133,7 @@ else
   default_data_dir="$install_dir/data"
 fi
 
-if [ "$DATA_DIR" = "/var/lib/ispcontrol" ]; then
+if [ -z "$DATA_DIR" ]; then
   DATA_DIR="$default_data_dir"
 fi
 
@@ -143,7 +145,34 @@ download_compose() {
   fi
 
   COMPOSE_URL="https://raw.githubusercontent.com/Insycom/ispcontrol-connector-installer/main/docker-compose.yml"
-  curl -fsSL "$COMPOSE_URL" -o "$install_dir/docker-compose.yml"
+  curl -fL --retry 3 --retry-delay 1 "$COMPOSE_URL" -o "$install_dir/docker-compose.yml" || {
+    warn "No pude bajar el compose desde GitHub, usando una copia embebida."
+    cat >"$install_dir/docker-compose.yml" <<EOF
+services:
+  connector:
+    image: ghcr.io/insycom/ispcontrol-connector:latest
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    dns:
+      - ${DNS_SERVER}
+    environment:
+      ISPCONTROL_API_URL: ${API_URL}
+      ISPCONTROL_ALLOW_INSECURE_HTTP: ${ALLOW_INSECURE_HTTP}
+      ISPCONTROL_CONNECTOR_NAME: ${CONNECTOR_NAME}
+      ISPCONTROL_ENROLLMENT_TOKEN: ${ENROLLMENT_TOKEN}
+      ISPCONTROL_GLOBAL_CONNECTOR_DATA_DIR: ${DATA_DIR}
+      ISPCONTROL_DNS_SERVER: ${DNS_SERVER}
+    volumes:
+      - connector_identity:${DATA_DIR}
+    ports:
+      - "127.0.0.1:${PORT}:9080"
+
+volumes:
+  connector_identity:
+EOF
+  }
 }
 
 write_env() {
