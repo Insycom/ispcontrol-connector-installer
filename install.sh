@@ -142,35 +142,8 @@ download_compose() {
     return
   fi
 
-  COMPOSE_URL="https://raw.githubusercontent.com/Insycom/ISPCONTROL/main/apps/connector/docker-compose.installer.example.yaml"
+  COMPOSE_URL="https://raw.githubusercontent.com/Insycom/ispcontrol-connector-installer/main/docker-compose.yml"
   curl -fsSL "$COMPOSE_URL" -o "$install_dir/docker-compose.yml"
-  return
-
-  cat >"$install_dir/docker-compose.yml" <<EOF
-services:
-  connector:
-    image: ghcr.io/insycom/ispcontrol-connector:latest
-    restart: unless-stopped
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
-    dns:
-      - ${DNS_SERVER}
-    environment:
-      ISPCONTROL_API_URL: ${API_URL}
-      ISPCONTROL_ALLOW_INSECURE_HTTP: ${ALLOW_INSECURE_HTTP}
-      ISPCONTROL_CONNECTOR_NAME: ${CONNECTOR_NAME}
-      ISPCONTROL_ENROLLMENT_TOKEN: ${ENROLLMENT_TOKEN}
-      ISPCONTROL_GLOBAL_CONNECTOR_DATA_DIR: ${DATA_DIR}
-      ISPCONTROL_DNS_SERVER: ${DNS_SERVER}
-    volumes:
-      - connector_identity:${DATA_DIR}
-    ports:
-      - "127.0.0.1:${PORT}:9080"
-
-volumes:
-  connector_identity:
-EOF
 }
 
 write_env() {
