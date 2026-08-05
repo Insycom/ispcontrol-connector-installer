@@ -1,6 +1,7 @@
 services:
   connector:
-    image: ghcr.io/insycom/ispcontrol-connector:latest
+    build:
+      context: ./connector-src
     restart: unless-stopped
     read_only: true
     security_opt:
