@@ -10,6 +10,8 @@ import { MachineClient } from "./machine-client.js";
 import { MonitoringService } from "./monitoring/monitoring-service.js";
 import { totalmem, freemem, uptime, loadavg, cpus } from "node:os";
 
+const CONNECTOR_VERSION = "0.2.1";
+
 const config = loadConfig();
 const identityResult = await loadOrCreateIdentity(config.dataDirectory);
 let identity = identityResult.identity;
@@ -21,7 +23,7 @@ if (identityResult.created && config.enrollmentToken) {
     config.enrollmentToken,
     config.connectorName,
   );
-} else if (identityResult.created) {
+} else if (identity.apiKey) {
   showApiKeyOnce(identity);
 }
 
@@ -55,7 +57,7 @@ if (identity.apiKey) {
   const sendHeartbeat = async () => {
     try {
       await machineClient.heartbeat({
-        connectorVersion: "0.1.0",
+        connectorVersion: CONNECTOR_VERSION,
         protocolVersion: 1,
         uptimeSeconds: Math.floor(uptime()),
         cpuUsagePercent: Math.min(100, (loadavg()[0] ?? 0) / cpus().length * 100),

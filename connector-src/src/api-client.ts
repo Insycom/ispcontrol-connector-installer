@@ -44,9 +44,9 @@ export class ConnectorApiClient {
           authorization: `Bearer ${this.identity.apiKey}`,
           "content-type": "application/json",
         },
-        body: JSON.stringify({
+body: JSON.stringify({
           connectorId: this.identity.connectorId,
-          version: "0.1.0",
+          version: "0.2.1",
           capabilities: [],
         }),
         signal: AbortSignal.timeout(10_000),
