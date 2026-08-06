@@ -36,6 +36,7 @@ VERSION=""
 COMMIT=""
 IMAGE="ghcr.io/insycom/ispcontrol-connector:latest"
 MODULES_DIR="/docker/ispcontrol"
+LOCAL_IMAGE="ispcontrol-connector:local"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -94,10 +95,20 @@ if [ ! -d "$WORKDIR/repo/.git" ]; then
 fi
 git -C "$WORKDIR/repo" checkout --force "$REF" >/dev/null 2>&1 || git -C "$WORKDIR/repo" checkout --force origin/main
 
+ensure_connector_image() {
+  if docker pull "$IMAGE" >/dev/null 2>&1; then
+    return
+  fi
+
+  log "No pude descargar $IMAGE desde el registry. Compilo la imagen localmente..."
+  docker build -t "$LOCAL_IMAGE" "$WORKDIR/repo/connector-src" >/dev/null
+  IMAGE="$LOCAL_IMAGE"
+}
+
 if [ "$USE_DOCKER_RUN" = "true" ]; then
   log "Ejecutando con docker run..."
   mkdir -p "$MODULES_DIR"
-  docker pull "$IMAGE"
+  ensure_connector_image
   docker rm -f ispcontrol-connector >/dev/null 2>&1 || true
   docker run -d \
     --name ispcontrol-connector \
@@ -130,6 +141,7 @@ fi
 
 mkdir -p "$INSTALL_DIR"
 mkdir -p "$MODULES_DIR"
+ensure_connector_image
 cp "$WORKDIR/repo/docker-compose.yml" "$INSTALL_DIR/docker-compose.yml"
 cat >"$INSTALL_DIR/.env" <<EOF
 ISPCONTROL_API_URL=${API_URL}

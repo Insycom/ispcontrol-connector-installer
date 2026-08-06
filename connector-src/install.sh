@@ -8,6 +8,8 @@ ENROLLMENT_TOKEN=""
 PORT="9080"
 ALLOW_INSECURE_HTTP="false"
 MODULES_DIR="/docker/ispcontrol"
+CONNECTOR_IMAGE="ghcr.io/insycom/ispcontrol-connector:latest"
+LOCAL_IMAGE="ispcontrol-connector:local"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -18,6 +20,7 @@ while [ $# -gt 0 ]; do
     --allow-insecure-http) ALLOW_INSECURE_HTTP="${2:-false}"; shift 2 ;;
     --port) PORT="${2:-9080}"; shift 2 ;;
     --modules-dir) MODULES_DIR="${2:-/docker/ispcontrol}"; shift 2 ;;
+    --image) CONNECTOR_IMAGE="${2:-ghcr.io/insycom/ispcontrol-connector:latest}"; shift 2 ;;
     -h|--help)
       cat <<'EOF'
 Uso:
@@ -32,6 +35,12 @@ done
 [ -n "$API_URL" ] || { printf '%s\n' "--api-url es obligatorio" >&2; exit 1; }
 mkdir -p "$MODULES_DIR"
 
+if ! docker pull "$CONNECTOR_IMAGE" >/dev/null 2>&1; then
+  printf '%s\n' "[ispcontrol] No pude descargar $CONNECTOR_IMAGE. Compilo la imagen localmente..." >&2
+  docker build -t "$LOCAL_IMAGE" . >/dev/null
+  CONNECTOR_IMAGE="$LOCAL_IMAGE"
+fi
+
 cat >.env <<EOF
 ISPCONTROL_API_URL=${API_URL}
 ISPCONTROL_ALLOW_INSECURE_HTTP=${ALLOW_INSECURE_HTTP}
@@ -43,7 +52,7 @@ ISPCONTROL_MODULES_ROOT=/docker/ispcontrol
 ISPCONTROL_MODULES_ROOT_HOST=${MODULES_DIR}
 ISPCONTROL_RUN_AS_ROOT=true
 PORT=${PORT}
-ISPCONTROL_CONNECTOR_IMAGE=ghcr.io/insycom/ispcontrol-connector:latest
+ISPCONTROL_CONNECTOR_IMAGE=${CONNECTOR_IMAGE}
 EOF
 
 docker compose up -d
