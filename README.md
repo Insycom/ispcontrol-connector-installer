@@ -14,6 +14,10 @@ y ejecuta acciones autorizadas sobre equipos alcanzables desde su red local.
 El puerto de salud `9080` se publica únicamente en `127.0.0.1` del host. No debe
 exponerse a Internet.
 
+El contenedor monta `/var/run/docker.sock` y `/docker/ispcontrol` para poder
+administrar módulos locales por tenant. Por eso este conector debe instalarse en
+un host de confianza y no exponerse a Internet.
+
 El heartbeat autenticado se envía a
 `/api/v1/connector/v1/heartbeat`. En producción la URL configurada debe usar
 HTTPS para que la API key nunca viaje en texto claro.
@@ -22,18 +26,25 @@ Para probar temporalmente contra una API HTTP de la red local se debe definir
 `ISPCONTROL_ALLOW_INSECURE_HTTP=true`. Esta excepción es solo para desarrollo y
 debe quitarse al publicar la API detrás del proxy HTTPS.
 
-En el arranque global local se asume por defecto `http://ispcontrol.local`.
-
 ## Instalación en otra máquina Linux
 
 Se puede instalar con un solo comando cuando publiques el script:
 
 ```bash
 curl -fsSL https://<tu-dominio>/install-connector.sh | bash -s -- \
-  --api-url http://ispcontrol.local \
+  --api-url https://ispcontrol.sys.ar \
   --dns 172.31.0.1 \
   --name "Conector sucursal norte"
 ```
 
-El instalador instala Docker si hace falta, crea el compose y levanta el
-contenedor con reinicio automático.
+Si querés un install directo desde GitHub:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Insycom/ispcontrol-connector-installer/main/install.sh | bash -s -- \
+  --api-url https://ispcontrol.sys.ar \
+  --dns 172.31.0.1 \
+  --name "Conector sucursal norte"
+```
+
+El instalador crea el compose, monta `docker.sock`, monta `/docker/ispcontrol`
+y levanta el contenedor con reinicio automático.

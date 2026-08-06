@@ -1,10 +1,7 @@
 services:
   connector:
-    image: ${ISPCONTROL_CONNECTOR_IMAGE:-fponce1996/ispcontrol-connector:latest}
+    image: ${ISPCONTROL_CONNECTOR_IMAGE:-ghcr.io/insycom/ispcontrol-connector:latest}
     restart: unless-stopped
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
     dns:
       - ${ISPCONTROL_DNS_SERVER:-172.31.0.1}
     environment:
@@ -14,8 +11,12 @@ services:
       ISPCONTROL_ENROLLMENT_TOKEN: ${ISPCONTROL_ENROLLMENT_TOKEN:-}
       ISPCONTROL_GLOBAL_CONNECTOR_DATA_DIR: ${ISPCONTROL_GLOBAL_CONNECTOR_DATA_DIR:-/var/lib/ispcontrol}
       ISPCONTROL_DNS_SERVER: ${ISPCONTROL_DNS_SERVER:-172.31.0.1}
+      ISPCONTROL_MODULES_ROOT: ${ISPCONTROL_MODULES_ROOT:-/docker/ispcontrol}
+      ISPCONTROL_RUN_AS_ROOT: ${ISPCONTROL_RUN_AS_ROOT:-true}
     volumes:
       - connector_identity:${ISPCONTROL_GLOBAL_CONNECTOR_DATA_DIR:-/var/lib/ispcontrol}
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${ISPCONTROL_MODULES_ROOT_HOST:-/docker/ispcontrol}:${ISPCONTROL_MODULES_ROOT:-/docker/ispcontrol}
     ports:
       - "127.0.0.1:${PORT:-9080}:9080"
 

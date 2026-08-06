@@ -5,7 +5,7 @@ usage() {
   cat <<'EOF'
 Uso:
   curl -fsSL https://raw.githubusercontent.com/Insycom/ispcontrol-connector-installer/main/install.sh | bash -s -- \
-    --api-url http://ispcontrol.local:3000 \
+    --api-url https://ispcontrol.sys.ar \
     --dns 172.31.0.1 \
     --name "Conector sucursal norte"
 
@@ -17,6 +17,7 @@ Opcionales:
   --enrollment-token TOKEN
   --allow-insecure-http true|false
   --port 9080
+  --modules-dir RUTA
 EOF
 }
 
@@ -33,7 +34,8 @@ ALLOW_INSECURE_HTTP="false"
 USE_DOCKER_RUN="false"
 VERSION=""
 COMMIT=""
-IMAGE="fponce1996/ispcontrol-connector:latest"
+IMAGE="ghcr.io/insycom/ispcontrol-connector:latest"
+MODULES_DIR="/docker/ispcontrol"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -44,6 +46,7 @@ while [ $# -gt 0 ]; do
     --enrollment-token) ENROLLMENT_TOKEN="${2:-}"; shift 2 ;;
     --allow-insecure-http) ALLOW_INSECURE_HTTP="${2:-false}"; shift 2 ;;
     --port) PORT="${2:-9080}"; shift 2 ;;
+    --modules-dir) MODULES_DIR="${2:-/docker/ispcontrol}"; shift 2 ;;
     --docker-run) USE_DOCKER_RUN="true"; shift 1 ;;
     --version) VERSION="${2:-}"; shift 2 ;;
     --commit) COMMIT="${2:-}"; shift 2 ;;
@@ -54,6 +57,7 @@ while [ $# -gt 0 ]; do
 done
 
 [ -n "$API_URL" ] || die "--api-url es obligatorio"
+[ -n "$MODULES_DIR" ] || die "--modules-dir no puede estar vacío"
 
 REPO_URL="https://github.com/Insycom/ispcontrol-connector-installer.git"
 REPO_RAW="https://raw.githubusercontent.com/Insycom/ispcontrol-connector-installer"
@@ -92,13 +96,12 @@ git -C "$WORKDIR/repo" checkout --force "$REF" >/dev/null 2>&1 || git -C "$WORKD
 
 if [ "$USE_DOCKER_RUN" = "true" ]; then
   log "Ejecutando con docker run..."
+  mkdir -p "$MODULES_DIR"
   docker pull "$IMAGE"
   docker rm -f ispcontrol-connector >/dev/null 2>&1 || true
   docker run -d \
     --name ispcontrol-connector \
     --restart unless-stopped \
-    --read-only \
-    --security-opt no-new-privileges:true \
     --dns "$DNS_SERVER" \
     -e ISPCONTROL_API_URL="$API_URL" \
     -e ISPCONTROL_ALLOW_INSECURE_HTTP="$ALLOW_INSECURE_HTTP" \
@@ -106,9 +109,12 @@ if [ "$USE_DOCKER_RUN" = "true" ]; then
     -e ISPCONTROL_ENROLLMENT_TOKEN="$ENROLLMENT_TOKEN" \
     -e ISPCONTROL_GLOBAL_CONNECTOR_DATA_DIR="/var/lib/ispcontrol" \
     -e ISPCONTROL_DNS_SERVER="$DNS_SERVER" \
+    -e ISPCONTROL_MODULES_ROOT="/docker/ispcontrol" \
+    -e ISPCONTROL_RUN_AS_ROOT="true" \
     -p "127.0.0.1:${PORT}:9080" \
-    --tmpfs /tmp \
-    --tmpfs /run \
+    -v ispcontrol_connector_identity:/var/lib/ispcontrol \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v "$MODULES_DIR:/docker/ispcontrol" \
     "$IMAGE"
   log "Listo. Salud local en http://127.0.0.1:${PORT}/health"
   exit 0
@@ -123,6 +129,7 @@ if [ -z "$INSTALL_DIR" ]; then
 fi
 
 mkdir -p "$INSTALL_DIR"
+mkdir -p "$MODULES_DIR"
 cp "$WORKDIR/repo/docker-compose.yml" "$INSTALL_DIR/docker-compose.yml"
 cat >"$INSTALL_DIR/.env" <<EOF
 ISPCONTROL_API_URL=${API_URL}
@@ -131,6 +138,9 @@ ISPCONTROL_CONNECTOR_NAME=${CONNECTOR_NAME}
 ISPCONTROL_ENROLLMENT_TOKEN=${ENROLLMENT_TOKEN}
 ISPCONTROL_GLOBAL_CONNECTOR_DATA_DIR=/var/lib/ispcontrol
 ISPCONTROL_DNS_SERVER=${DNS_SERVER}
+ISPCONTROL_MODULES_ROOT=/docker/ispcontrol
+ISPCONTROL_MODULES_ROOT_HOST=${MODULES_DIR}
+ISPCONTROL_RUN_AS_ROOT=true
 PORT=${PORT}
 ISPCONTROL_CONNECTOR_IMAGE=${IMAGE}
 EOF
