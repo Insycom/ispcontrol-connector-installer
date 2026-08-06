@@ -1,7 +1,6 @@
 services:
   connector:
-    build:
-      context: ./connector-src
+    image: ${ISPCONTROL_CONNECTOR_IMAGE:-fponce1996/ispcontrol-connector:latest}
     restart: unless-stopped
     read_only: true
     security_opt:
